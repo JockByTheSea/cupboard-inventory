@@ -6,7 +6,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const dbFile = "data.db"
+var dbFile = "data.db"
 
 func openDB() (*sql.DB, error) {
 	db, err := sql.Open("sqlite", dbFile)
