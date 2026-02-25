@@ -3,4 +3,4 @@ cupboard-inventory
 cupboard-inventory.exe
 
 # User data file (runtime generated)
-data.json
+data.db
