@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cupboard Inventory</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<header>
+    <div class="header-inner">
+        <div>
+            <h1>🏠 Cupboard Inventory</h1>
+            <p>Track your pantry items and freezer meals</p>
+        </div>
+    </div>
+</header>
+
+<main>
+    <!-- ══ Pantry Section ══ -->
+    <section class="section pantry">
+        <div class="section-header">
+            <div>
+                <h2>🫙 Pantry</h2>
+                <div class="item-count">{{len .PantryItems}} item{{if ne (len .PantryItems) 1}}s{{end}}</div>
+            </div>
+            <button class="btn btn-white" onclick="openModal('add-pantry-modal')">+ Add Item</button>
+        </div>
+        <div class="items-list">
+            {{if eq (len .PantryItems) 0}}
+            <div class="empty-state">
+                <div class="icon">🫙</div>
+                <p>No pantry items yet.<br>Add some items to get started!</p>
+            </div>
+            {{else}}
+            {{range .PantryItems}}
+            <div class="item-card{{if isExpired .Expiry}} expired{{else if isExpiringSoon .Expiry}} expiring{{end}}">
+                <div class="item-header">
+                    <span class="item-name">{{.Name}}</span>
+                    <div class="item-actions">
+                        <button class="btn btn-warning btn-sm"
+                            data-id="{{.ID}}"
+                            data-name="{{.Name}}"
+                            data-quantity="{{.Quantity}}"
+                            data-category="{{.Category}}"
+                            data-expiry="{{.Expiry}}"
+                            data-notes="{{.Notes}}"
+                            onclick="editPantryFromBtn(this)"
+                            title="Edit">✏️</button>
+                        <button class="btn btn-danger btn-sm"
+                            data-id="{{.ID}}"
+                            data-name="{{.Name}}"
+                            onclick="deletePantryFromBtn(this)"
+                            title="Delete">🗑️</button>
+                    </div>
+                </div>
+                <div class="item-meta">
+                    {{if .Category}}
+                    <span class="cat-badge {{categoryClass .Category}}">{{.Category}}</span>
+                    {{end}}
+                    {{if .Quantity}}
+                    <span class="badge badge-qty">📦 {{.Quantity}}</span>
+                    {{end}}
+                    {{if .Expiry}}
+                    <span class="badge {{if isExpired .Expiry}}badge-expiry-bad{{else if isExpiringSoon .Expiry}}badge-expiry-warn{{else}}badge-expiry-ok{{end}}">
+                        {{if isExpired .Expiry}}⚠️ Expired{{else if isExpiringSoon .Expiry}}⏰ Expires soon{{else}}📅{{end}} {{.Expiry}}
+                    </span>
+                    {{end}}
+                </div>
+                {{if .Notes}}
+                <div class="item-notes">{{.Notes}}</div>
+                {{end}}
+            </div>
+            {{end}}
+            {{end}}
+        </div>
+    </section>
+
+    <!-- ══ Freezer Section ══ -->
+    <section class="section freezer">
+        <div class="section-header">
+            <div>
+                <h2>❄️ Freezer Meals</h2>
+                <div class="item-count">{{len .FreezerMeals}} meal{{if ne (len .FreezerMeals) 1}}s{{end}}</div>
+            </div>
+            <button class="btn btn-white" onclick="openModal('add-freezer-modal')">+ Add Meal</button>
+        </div>
+        <div class="items-list">
+            {{if eq (len .FreezerMeals) 0}}
+            <div class="empty-state">
+                <div class="icon">❄️</div>
+                <p>No freezer meals yet.<br>Add some meals to keep track!</p>
+            </div>
+            {{else}}
+            {{range .FreezerMeals}}
+            <div class="item-card {{freezerAgeClass .DateFrozen}}">
+                <div class="item-header">
+                    <span class="item-name">{{.Name}}</span>
+                    <div class="item-actions">
+                        <button class="btn btn-warning btn-sm"
+                            data-id="{{.ID}}"
+                            data-name="{{.Name}}"
+                            data-portions="{{.Portions}}"
+                            data-date-frozen="{{.DateFrozen}}"
+                            data-description="{{.Description}}"
+                            onclick="editFreezerFromBtn(this)"
+                            title="Edit">✏️</button>
+                        <button class="btn btn-danger btn-sm"
+                            data-id="{{.ID}}"
+                            data-name="{{.Name}}"
+                            onclick="deleteFreezerFromBtn(this)"
+                            title="Delete">🗑️</button>
+                    </div>
+                </div>
+                <div class="item-meta">
+                    {{if .Portions}}
+                    <span class="badge badge-portions">🍽️ {{.Portions}} portions</span>
+                    {{end}}
+                    {{if .DateFrozen}}
+                    <span class="badge-age">❄️ Frozen {{daysInFreezer .DateFrozen}} days ago</span>
+                    {{end}}
+                </div>
+                {{if .Description}}
+                <div class="item-notes">{{.Description}}</div>
+                {{end}}
+            </div>
+            {{end}}
+            {{end}}
+        </div>
+    </section>
+</main>
+
+<footer>
+    <p>Cupboard Inventory &mdash; Know what you have, reduce waste</p>
+</footer>
+
+<!-- ══ Add Pantry Modal ══ -->
+<div id="add-pantry-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="add-pantry-title">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="add-pantry-title">🫙 Add Pantry Item</h3>
+            <button class="modal-close" onclick="closeModal('add-pantry-modal')" aria-label="Close">×</button>
+        </div>
+        <form action="/pantry/add" method="POST">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-pantry-name">Item Name *</label>
+                    <input type="text" id="add-pantry-name" name="name" required placeholder="e.g. Tinned tomatoes" autofocus>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="add-pantry-quantity">Quantity</label>
+                        <input type="text" id="add-pantry-quantity" name="quantity" placeholder="e.g. 3 cans">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-pantry-category">Category</label>
+                        <select id="add-pantry-category" name="category">
+                            <option value="">— Select —</option>
+                            <option value="Canned Goods">Canned Goods</option>
+                            <option value="Dry Goods">Dry Goods</option>
+                            <option value="Spices">Spices</option>
+                            <option value="Condiments">Condiments</option>
+                            <option value="Baking">Baking</option>
+                            <option value="Snacks">Snacks</option>
+                            <option value="Beverages">Beverages</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="add-pantry-expiry">Expiry Date</label>
+                    <input type="date" id="add-pantry-expiry" name="expiry">
+                </div>
+                <div class="form-group">
+                    <label for="add-pantry-notes">Notes</label>
+                    <textarea id="add-pantry-notes" name="notes" placeholder="Any additional notes…"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('add-pantry-modal')">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Item</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══ Edit Pantry Modal ══ -->
+<div id="edit-pantry-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-pantry-title">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="edit-pantry-title">✏️ Edit Pantry Item</h3>
+            <button class="modal-close" onclick="closeModal('edit-pantry-modal')" aria-label="Close">×</button>
+        </div>
+        <form action="/pantry/edit" method="POST">
+            <input type="hidden" id="edit-pantry-id" name="id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-pantry-name">Item Name *</label>
+                    <input type="text" id="edit-pantry-name" name="name" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-pantry-quantity">Quantity</label>
+                        <input type="text" id="edit-pantry-quantity" name="quantity">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-pantry-category">Category</label>
+                        <select id="edit-pantry-category" name="category">
+                            <option value="">— Select —</option>
+                            <option value="Canned Goods">Canned Goods</option>
+                            <option value="Dry Goods">Dry Goods</option>
+                            <option value="Spices">Spices</option>
+                            <option value="Condiments">Condiments</option>
+                            <option value="Baking">Baking</option>
+                            <option value="Snacks">Snacks</option>
+                            <option value="Beverages">Beverages</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-pantry-expiry">Expiry Date</label>
+                    <input type="date" id="edit-pantry-expiry" name="expiry">
+                </div>
+                <div class="form-group">
+                    <label for="edit-pantry-notes">Notes</label>
+                    <textarea id="edit-pantry-notes" name="notes"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('edit-pantry-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══ Delete Pantry Modal ══ -->
+<div id="delete-pantry-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="del-pantry-title">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="del-pantry-title">🗑️ Delete Item</h3>
+            <button class="modal-close" onclick="closeModal('delete-pantry-modal')" aria-label="Close">×</button>
+        </div>
+        <form action="/pantry/delete" method="POST">
+            <input type="hidden" id="delete-pantry-id" name="id">
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="delete-pantry-name"></strong>?</p>
+                <p style="margin-top:0.5rem;color:var(--text-light);font-size:0.875rem;">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('delete-pantry-modal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══ Add Freezer Modal ══ -->
+<div id="add-freezer-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="add-freezer-title">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="add-freezer-title">❄️ Add Freezer Meal</h3>
+            <button class="modal-close" onclick="closeModal('add-freezer-modal')" aria-label="Close">×</button>
+        </div>
+        <form action="/freezer/add" method="POST">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="add-freezer-name">Meal Name *</label>
+                    <input type="text" id="add-freezer-name" name="name" required placeholder="e.g. Spaghetti Bolognese">
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="add-freezer-portions">Portions</label>
+                        <input type="text" id="add-freezer-portions" name="portions" placeholder="e.g. 4">
+                    </div>
+                    <div class="form-group">
+                        <label for="add-freezer-date">Date Frozen</label>
+                        <input type="date" id="add-freezer-date" name="date_frozen">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="add-freezer-description">Description</label>
+                    <textarea id="add-freezer-description" name="description" placeholder="Any notes about this meal…"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('add-freezer-modal')">Cancel</button>
+                <button type="submit" class="btn btn-success">Add Meal</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══ Edit Freezer Modal ══ -->
+<div id="edit-freezer-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="edit-freezer-title">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="edit-freezer-title">✏️ Edit Freezer Meal</h3>
+            <button class="modal-close" onclick="closeModal('edit-freezer-modal')" aria-label="Close">×</button>
+        </div>
+        <form action="/freezer/edit" method="POST">
+            <input type="hidden" id="edit-freezer-id" name="id">
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="edit-freezer-name">Meal Name *</label>
+                    <input type="text" id="edit-freezer-name" name="name" required>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="edit-freezer-portions">Portions</label>
+                        <input type="text" id="edit-freezer-portions" name="portions">
+                    </div>
+                    <div class="form-group">
+                        <label for="edit-freezer-date">Date Frozen</label>
+                        <input type="date" id="edit-freezer-date" name="date_frozen">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="edit-freezer-description">Description</label>
+                    <textarea id="edit-freezer-description" name="description"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('edit-freezer-modal')">Cancel</button>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ══ Delete Freezer Modal ══ -->
+<div id="delete-freezer-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="del-freezer-title">
+    <div class="modal">
+        <div class="modal-header">
+            <h3 id="del-freezer-title">🗑️ Delete Meal</h3>
+            <button class="modal-close" onclick="closeModal('delete-freezer-modal')" aria-label="Close">×</button>
+        </div>
+        <form action="/freezer/delete" method="POST">
+            <input type="hidden" id="delete-freezer-id" name="id">
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="delete-freezer-name"></strong>?</p>
+                <p style="margin-top:0.5rem;color:var(--text-light);font-size:0.875rem;">This action cannot be undone.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn" onclick="closeModal('delete-freezer-modal')">Cancel</button>
+                <button type="submit" class="btn btn-danger">Delete</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Set today's date as default for the "date frozen" field
+    (function () {
+        const today = new Date().toISOString().split('T')[0];
+        const df = document.getElementById('add-freezer-date');
+        if (df) df.value = today;
+    })();
+
+    function openModal(id) {
+        document.getElementById(id).classList.add('active');
+        document.body.style.overflow = 'hidden';
+        // Focus first input
+        const first = document.getElementById(id).querySelector('input, select, textarea');
+        if (first) setTimeout(() => first.focus(), 50);
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).classList.remove('active');
+        document.body.style.overflow = '';
+    }
+
+    // Close on overlay click
+    document.querySelectorAll('.modal-overlay').forEach(overlay => {
+        overlay.addEventListener('click', function (e) {
+            if (e.target === this) {
+                this.classList.remove('active');
+                document.body.style.overflow = '';
+            }
+        });
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') {
+            document.querySelectorAll('.modal-overlay.active').forEach(m => {
+                m.classList.remove('active');
+            });
+            document.body.style.overflow = '';
+        }
+    });
+
+    // ── Pantry helpers ──
+    function editPantryFromBtn(btn) {
+        document.getElementById('edit-pantry-id').value       = btn.dataset.id;
+        document.getElementById('edit-pantry-name').value     = btn.dataset.name;
+        document.getElementById('edit-pantry-quantity').value = btn.dataset.quantity;
+        document.getElementById('edit-pantry-category').value = btn.dataset.category;
+        document.getElementById('edit-pantry-expiry').value   = btn.dataset.expiry;
+        document.getElementById('edit-pantry-notes').value    = btn.dataset.notes;
+        openModal('edit-pantry-modal');
+    }
+
+    function deletePantryFromBtn(btn) {
+        document.getElementById('delete-pantry-id').value            = btn.dataset.id;
+        document.getElementById('delete-pantry-name').textContent    = btn.dataset.name;
+        openModal('delete-pantry-modal');
+    }
+
+    // ── Freezer helpers ──
+    function editFreezerFromBtn(btn) {
+        document.getElementById('edit-freezer-id').value          = btn.dataset.id;
+        document.getElementById('edit-freezer-name').value        = btn.dataset.name;
+        document.getElementById('edit-freezer-portions').value    = btn.dataset.portions;
+        document.getElementById('edit-freezer-date').value        = btn.dataset.dateFrozen;
+        document.getElementById('edit-freezer-description').value = btn.dataset.description;
+        openModal('edit-freezer-modal');
+    }
+
+    function deleteFreezerFromBtn(btn) {
+        document.getElementById('delete-freezer-id').value         = btn.dataset.id;
+        document.getElementById('delete-freezer-name').textContent = btn.dataset.name;
+        openModal('delete-freezer-modal');
+    }
+</script>
+</body>
+</html>
